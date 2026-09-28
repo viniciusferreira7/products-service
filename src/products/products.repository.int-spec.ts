@@ -111,6 +111,13 @@ describe('Product persistence (integration)', () => {
     ).resolves.toBe('23514');
   });
 
+  it('rejects a NaN price', async () => {
+    // Postgres sorts NaN above every number, so `price >= 0` alone lets it in.
+    await expect(
+      sqlStateOf(products.insert(makeProduct({ price: Number.NaN })))
+    ).resolves.toBe('23514');
+  });
+
   it('rejects a negative stock', async () => {
     await expect(
       sqlStateOf(products.insert(makeProduct({ stock: -1 })))

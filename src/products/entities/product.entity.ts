@@ -9,7 +9,8 @@ import {
 import { decimalToNumberTransformer } from '../transformers/decimal-to-number.transformer';
 
 @Entity('products')
-@Check('CHK_products_price_non_negative', '"price" >= 0')
+// Postgres sorts NaN above every number, so `>= 0` alone would accept it.
+@Check('CHK_products_price_non_negative', `"price" >= 0 AND "price" <> 'NaN'`)
 @Check('CHK_products_stock_non_negative', '"stock" >= 0')
 export class Product {
   @PrimaryGeneratedColumn('uuid')

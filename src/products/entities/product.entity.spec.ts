@@ -95,7 +95,10 @@ describe('Product entity', () => {
 
     expect(checks).toEqual(
       expect.arrayContaining([
-        { name: 'CHK_products_price_non_negative', expression: '"price" >= 0' },
+        {
+          name: 'CHK_products_price_non_negative',
+          expression: `"price" >= 0 AND "price" <> 'NaN'`,
+        },
         { name: 'CHK_products_stock_non_negative', expression: '"stock" >= 0' },
       ])
     );
