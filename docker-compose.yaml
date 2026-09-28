@@ -1,0 +1,49 @@
+services:
+  products-service-postgresql:
+    container_name: products-service-postgresql
+    image: postgres:15.19
+    ports:
+      - ${DB_PORT:-5437}:5432
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    networks:
+      - products-service-network
+    volumes:
+      - products_service_pg_data:/var/lib/postgresql/data
+
+  products-service-postgresql-test:
+    container_name: products-service-postgresql-test
+    image: postgres:15.19
+    profiles:
+      - test
+    ports:
+      - ${DB_TEST_PORT:-5438}:5432
+    environment:
+      POSTGRES_USER: ${DB_TEST_USERNAME:-test}
+      POSTGRES_PASSWORD: ${DB_TEST_PASSWORD:-test}
+      POSTGRES_DB: ${DB_TEST_DATABASE:-products_db_test}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_TEST_USERNAME:-test} -d ${DB_TEST_DATABASE:-products_db_test}",
+        ]
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    networks:
+      - products-service-network
+
+networks:
+  products-service-network:
+    driver: bridge
+
+volumes:
+  products_service_pg_data:
