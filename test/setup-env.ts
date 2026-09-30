@@ -20,6 +20,8 @@ const defaults: Record<string, string> = {
   // only exist to satisfy the Zod schema.
   OTEL_SERVICE_NAME: 'products-service',
   OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318',
+  // Signs and verifies the tokens the e2e lane forges. Throwaway, 32+ chars.
+  JWT_SECRET: 'e2e-test-jwt-secret-with-at-least-32-chars',
 };
 
 for (const [key, value] of Object.entries(defaults)) {

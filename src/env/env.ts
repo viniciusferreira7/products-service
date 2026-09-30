@@ -29,6 +29,10 @@ export const envSchema = z.object({
   OTEL_SERVICE_NAME: z.string().min(1),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.url(),
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
+
+  // Verifies the tokens users-service signs on `POST /auth/login`. Must be the
+  // exact value configured in users-service and the api-gateway.
+  JWT_SECRET: z.string().min(32),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { envSchema } from './env';
 
@@ -8,6 +9,7 @@ const baseEnv = {
   DB_DATABASE: 'products_db',
   OTEL_SERVICE_NAME: 'products-service',
   OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318',
+  JWT_SECRET: 'a'.repeat(32),
 };
 
 describe('envSchema', () => {
@@ -83,6 +85,34 @@ describe('envSchema', () => {
   it('rejects an unknown LOG_LEVEL', () => {
     expect(() =>
       envSchema.parse({ ...baseEnv, LOG_LEVEL: 'verbose' })
+    ).toThrow();
+  });
+
+  it('rejects a missing JWT_SECRET', () => {
+    const { JWT_SECRET: _, ...withoutSecret } = baseEnv;
+
+    expect(() => envSchema.parse(withoutSecret)).toThrow();
+  });
+
+  it('rejects a JWT_SECRET shorter than 32 characters', () => {
+    expect(() =>
+      envSchema.parse({ ...baseEnv, JWT_SECRET: 'a'.repeat(31) })
+    ).toThrow();
+  });
+
+  it('accepts a JWT_SECRET of exactly 32 characters', () => {
+    expect(envSchema.parse(baseEnv).JWT_SECRET).toBe('a'.repeat(32));
+  });
+
+  it('refuses to boot on the JWT_SECRET placeholder from .env.example', () => {
+    // `cp .env.example .env` must not start a service that trusts tokens
+    // signed with a publicly known key.
+    const example = readFileSync('.env.example', 'utf8');
+    const placeholder = example.match(/^JWT_SECRET=(.*)$/m)?.[1];
+
+    expect(placeholder).toBeDefined();
+    expect(() =>
+      envSchema.parse({ ...baseEnv, JWT_SECRET: placeholder })
     ).toThrow();
   });
 });
