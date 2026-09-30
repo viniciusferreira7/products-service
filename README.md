@@ -4,7 +4,7 @@ Products microservice for the Marketplace microservices architecture. Owns the
 product catalog, backed by PostgreSQL 15 via TypeORM.
 
 This first version lays the foundation: the `Product` entity, the database
-connection, health probes and API docs. Catalog endpoints land in a later step.
+connection, JWT authentication, health probes and API docs. Catalog endpoints land in a later step.
 
 ## Where it sits
 
@@ -73,8 +73,9 @@ through `pnpm test:infra`; `pnpm test:infra:down` stops it again.
 
 ```
 src/
-  app.module.ts            Root module: config + env + observability + TypeORM + products + health
+  app.module.ts            Root module: config + env + observability + TypeORM + products + auth + health
   app.setup.ts             CORS + global ValidationPipe, shared by main.ts and the e2e harness
+  auth/                    JWT strategy, global guard and @Public (tokens are signed by users-service)
   config/                  TypeORM options and Swagger document
   env/                     Zod schema, EnvModule and typed EnvService
   health/                  /health, liveness/readiness/startup probes and graceful shutdown
@@ -82,7 +83,7 @@ src/
   utils/                   Service metadata
 test/
   setup-env.ts             Env defaults for the int/e2e lanes
-  factories/               DI container and HTTP app builders
+  factories/               DI container, HTTP app, test-only routes and tokens
   config/                  OpenAPI document helpers
   utils/                   Test-database guard and SQLSTATE helper
 ```
@@ -92,3 +93,14 @@ test/
 Every variable is validated by `src/env/env.ts` at boot — an invalid or missing
 value fails the process instead of surfacing later. See `.env.example` for the
 full list.
+
+`JWT_SECRET` verifies the tokens users-service signs on `POST /auth/login`. It
+must be the same value configured in users-service and the api-gateway, and at
+least 32 characters long.
+
+## Authentication
+
+Every route requires `Authorization: Bearer <token>` (HS256, issued by
+users-service) unless it is marked `@Public()`. A valid token exposes
+`req.user = { id, email, role }`; any failure answers a generic `401`.
+`GET /` and `/health/*` are public.
