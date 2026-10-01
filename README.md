@@ -4,7 +4,8 @@ Products microservice for the Marketplace microservices architecture. Owns the
 product catalog, backed by PostgreSQL 15 via TypeORM.
 
 It has the `Product` entity, the database connection, JWT authentication,
-health probes, API docs and the first catalog endpoint, `POST /products`.
+health probes, API docs and the catalog endpoints: public reads and
+seller-only creation.
 
 ## Where it sits
 
@@ -103,13 +104,26 @@ least 32 characters long.
 Every route requires `Authorization: Bearer <token>` (HS256, issued by
 users-service) unless it is marked `@Public()`. A valid token exposes
 `req.user = { id, email, role }`; any failure answers a generic `401`.
-`GET /` and `/health/*` are public.
+`GET /`, `/health/*` and the catalog reads (`GET /products*`) are public.
 
 A route marked `@Roles(...)` also requires one of those roles; any other user
 gets `403`. The roles guard runs after the JWT guard and before validation, so
 a user without the role gets `403` whatever the body.
 
 ## Endpoints
+
+### Catalog reads (public)
+
+No token needed. Only active products are ever returned, newest first.
+
+| Route | Answers |
+| --- | --- |
+| `GET /products` | `200` with every active product |
+| `GET /products/seller/:sellerId` | `200` with the seller's active products (`[]` when none); `400` if `sellerId` is not a UUID |
+| `GET /products/:id` | `200` with the product; `404` when no active product has the id; `400` if `id` is not a UUID |
+
+An inactive product answers `404` on `GET /products/:id`, the same as one that
+does not exist.
 
 ### `POST /products` (sellers only)
 
