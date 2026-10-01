@@ -3,8 +3,8 @@
 Products microservice for the Marketplace microservices architecture. Owns the
 product catalog, backed by PostgreSQL 15 via TypeORM.
 
-This first version lays the foundation: the `Product` entity, the database
-connection, JWT authentication, health probes and API docs. Catalog endpoints land in a later step.
+It has the `Product` entity, the database connection, JWT authentication,
+health probes, API docs and the first catalog endpoint, `POST /products`.
 
 ## Where it sits
 
@@ -75,11 +75,11 @@ through `pnpm test:infra`; `pnpm test:infra:down` stops it again.
 src/
   app.module.ts            Root module: config + env + observability + TypeORM + products + auth + health
   app.setup.ts             CORS + global ValidationPipe, shared by main.ts and the e2e harness
-  auth/                    JWT strategy, global guard and @Public (tokens are signed by users-service)
+  auth/                    JWT strategy, global JWT and roles guards, @Public and @Roles (tokens are signed by users-service)
   config/                  TypeORM options and Swagger document
   env/                     Zod schema, EnvModule and typed EnvService
   health/                  /health, liveness/readiness/startup probes and graceful shutdown
-  products/                Product entity, decimal transformer and ProductsModule
+  products/                Product entity, DTOs, ProductsService, ProductsController and ProductsModule
   utils/                   Service metadata
 test/
   setup-env.ts             Env defaults for the int/e2e lanes
@@ -104,3 +104,30 @@ Every route requires `Authorization: Bearer <token>` (HS256, issued by
 users-service) unless it is marked `@Public()`. A valid token exposes
 `req.user = { id, email, role }`; any failure answers a generic `401`.
 `GET /` and `/health/*` are public.
+
+A route marked `@Roles(...)` also requires one of those roles; any other user
+gets `403`. The roles guard runs after the JWT guard and before validation, so
+a user without the role gets `403` whatever the body.
+
+## Endpoints
+
+### `POST /products` (sellers only)
+
+Creates a product owned by the seller in the token (`sellerId = req.user.id`),
+always with `isActive: true`.
+
+| Field | Rules |
+| --- | --- |
+| `name` | required string, not blank, at most 255 characters, no control characters or line breaks |
+| `description` | required string, not blank, line breaks allowed, no other control characters |
+| `price` | required number, at most 2 decimal places, from `0.01` to `99999999.99` |
+| `stock` | required integer, `>= 0` |
+
+`sellerId`, `isActive` and any other property in the body are rejected.
+
+| Status | When |
+| --- | --- |
+| `201` | Created; answers the product |
+| `400` | The body failed validation; `message` lists every problem |
+| `401` | Missing or invalid token |
+| `403` | The user is not a seller |
