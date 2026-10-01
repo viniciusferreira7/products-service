@@ -43,6 +43,8 @@ describe('Swagger (e2e)', () => {
       '/health/ready',
       '/health/startup',
       '/products',
+      '/products/seller/{sellerId}',
+      '/products/{id}',
     ]);
   });
 
@@ -53,6 +55,19 @@ describe('Swagger (e2e)', () => {
       expect(document.paths[path].get?.tags).toEqual(['Health']);
       expect(document.paths[path].get?.summary).toBeTruthy();
     }
+  });
+
+  it.each([
+    ['/products', ['200']],
+    ['/products/seller/{sellerId}', ['200', '400']],
+    ['/products/{id}', ['200', '400', '404']],
+  ])('documents GET %s under Products, without a token', (path, statuses) => {
+    const operation = document.paths[path].get;
+
+    expect(operation?.tags).toEqual(['Products']);
+    expect(operation?.summary).toBeTruthy();
+    expect(operation?.security).toBeUndefined();
+    expect(Object.keys(operation?.responses ?? {}).sort()).toEqual(statuses);
   });
 
   it('documents POST /products under Products, behind the bearer token', () => {

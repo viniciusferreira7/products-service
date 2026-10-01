@@ -19,6 +19,8 @@ function makeRepository() {
       id: 'product-1',
     })),
     findOneByOrFail: vi.fn(),
+    findOneBy: vi.fn(),
+    find: vi.fn(),
   };
 }
 
@@ -75,5 +77,54 @@ describe('ProductsService', () => {
     await expect(makeService(repository).create(dto, sellerId)).rejects.toBe(
       failure
     );
+  });
+
+  it('lists the active products, newest first', async () => {
+    const repository = makeRepository();
+    const active = [{ id: 'product-1' }] as Product[];
+    repository.find.mockResolvedValue(active);
+
+    await expect(makeService(repository).findActive()).resolves.toBe(active);
+    expect(repository.find).toHaveBeenCalledWith({
+      where: { isActive: true },
+      order: { createdAt: 'DESC', id: 'ASC' },
+    });
+  });
+
+  it("lists a seller's active products, newest first", async () => {
+    const repository = makeRepository();
+    const active = [{ id: 'product-1' }] as Product[];
+    repository.find.mockResolvedValue(active);
+
+    await expect(
+      makeService(repository).findActiveBySeller(sellerId)
+    ).resolves.toBe(active);
+    expect(repository.find).toHaveBeenCalledWith({
+      where: { sellerId, isActive: true },
+      order: { createdAt: 'DESC', id: 'ASC' },
+    });
+  });
+
+  it('looks an active product up by id', async () => {
+    const repository = makeRepository();
+    const product = { id: 'product-1' } as Product;
+    repository.findOneBy.mockResolvedValue(product);
+
+    await expect(
+      makeService(repository).findActiveById('product-1')
+    ).resolves.toBe(product);
+    expect(repository.findOneBy).toHaveBeenCalledWith({
+      id: 'product-1',
+      isActive: true,
+    });
+  });
+
+  it('answers null when no active product has the id', async () => {
+    const repository = makeRepository();
+    repository.findOneBy.mockResolvedValue(null);
+
+    await expect(
+      makeService(repository).findActiveById('product-1')
+    ).resolves.toBeNull();
   });
 });
