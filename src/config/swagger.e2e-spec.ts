@@ -42,13 +42,30 @@ describe('Swagger (e2e)', () => {
       '/health/live',
       '/health/ready',
       '/health/startup',
+      '/products',
     ]);
   });
 
   it('groups the probes and the greeting under Health', () => {
-    for (const path of Object.keys(document.paths)) {
+    for (const path of Object.keys(document.paths).filter(
+      (path) => path === '/' || path.startsWith('/health')
+    )) {
       expect(document.paths[path].get?.tags).toEqual(['Health']);
       expect(document.paths[path].get?.summary).toBeTruthy();
     }
+  });
+
+  it('documents POST /products under Products, behind the bearer token', () => {
+    const operation = document.paths['/products'].post;
+
+    expect(operation?.tags).toEqual(['Products']);
+    expect(operation?.summary).toBeTruthy();
+    expect(operation?.security).toEqual([{ 'JWT-auth': [] }]);
+    expect(Object.keys(operation?.responses ?? {}).sort()).toEqual([
+      '201',
+      '400',
+      '401',
+      '403',
+    ]);
   });
 });
