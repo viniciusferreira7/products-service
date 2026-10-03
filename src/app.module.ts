@@ -14,6 +14,7 @@ import { EnvModule } from './env/env.module';
 import { EnvService } from './env/env.service';
 import { HealthModule } from './health/health.module';
 import { ProductsModule } from './products/products.module';
+import { productsServiceDetails } from './utils/products-service-details';
 
 @Module({
   imports: [
@@ -23,7 +24,10 @@ import { ProductsModule } from './products/products.module';
       validate: (env) => envSchema.parse(env),
     }),
     EnvModule,
-    ObservabilityModule.forRoot({ serviceName: 'products-service' }),
+    ObservabilityModule.forRoot({
+      serviceName: productsServiceDetails.name,
+      serviceVersion: productsServiceDetails.version,
+    }),
     TypeOrmModule.forRootAsync({
       imports: [EnvModule],
       inject: [EnvService],
