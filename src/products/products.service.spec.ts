@@ -1,4 +1,5 @@
 import type { Repository } from 'typeorm';
+import { metrics } from '../observability/metrics';
 import type { CreateProductDto } from './dtos/create-product.dto';
 import type { Product } from './entities/product.entity';
 import { ProductsService } from './products.service';
@@ -18,7 +19,12 @@ function makeRepository() {
       ...entity,
       id: 'product-1',
     })),
-    findOneByOrFail: vi.fn(),
+    findOneByOrFail: vi.fn(async ({ id }: { id: string }) => ({
+      id,
+      ...dto,
+      sellerId,
+      isActive: true,
+    })),
     findOneBy: vi.fn(),
     find: vi.fn(),
   };
@@ -126,5 +132,128 @@ describe('ProductsService', () => {
     await expect(
       makeService(repository).findActiveById('product-1')
     ).resolves.toBeNull();
+  });
+});
+
+describe('ProductsService metrics', () => {
+  let counters: ReturnType<typeof vi.spyOn>;
+  let histograms: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    // No meter provider under test: every counter is the same no-op object,
+    // and so is every histogram — the attributes tell them apart.
+    counters = vi.spyOn(metrics.catalog_reads, 'add');
+    histograms = vi.spyOn(metrics.catalog_read_duration, 'record');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const readSettledWith = (query: string, outcome: string) => {
+    expect(counters).toHaveBeenCalledWith(1, { query, outcome });
+    expect(histograms).toHaveBeenCalledWith(expect.any(Number), {
+      query,
+      outcome,
+    });
+  };
+
+  it('counts a created product and records its price', async () => {
+    const repository = makeRepository();
+
+    await makeService(repository).create(dto, sellerId);
+
+    expect(counters).toHaveBeenCalledWith(1, { outcome: 'succeeded' });
+    expect(histograms).toHaveBeenCalledWith(349.9);
+  });
+
+  it('counts a failed creation and rethrows the error', async () => {
+    const repository = makeRepository();
+    const failure = new Error('connection lost');
+    repository.save.mockRejectedValue(failure);
+
+    await expect(makeService(repository).create(dto, sellerId)).rejects.toBe(
+      failure
+    );
+
+    expect(counters).toHaveBeenCalledWith(1, { outcome: 'failed' });
+    expect(histograms).not.toHaveBeenCalledWith(349.9);
+  });
+
+  it.each([
+    ['list', (service: ProductsService) => service.findActive()],
+    [
+      'by_seller',
+      (service: ProductsService) => service.findActiveBySeller(sellerId),
+    ],
+  ])('counts a %s query that found products', async (query, run) => {
+    const repository = makeRepository();
+    repository.find.mockResolvedValue([{ id: 'product-1' }]);
+
+    await run(makeService(repository));
+
+    readSettledWith(query, 'found');
+  });
+
+  it.each([
+    ['list', (service: ProductsService) => service.findActive()],
+    [
+      'by_seller',
+      (service: ProductsService) => service.findActiveBySeller(sellerId),
+    ],
+  ])(
+    'counts an empty %s query as empty, not as an error',
+    async (query, run) => {
+      const repository = makeRepository();
+      repository.find.mockResolvedValue([]);
+
+      await run(makeService(repository));
+
+      readSettledWith(query, 'empty');
+    }
+  );
+
+  it('counts a product found by id', async () => {
+    const repository = makeRepository();
+    repository.findOneBy.mockResolvedValue({ id: 'product-1' });
+
+    await makeService(repository).findActiveById('product-1');
+
+    readSettledWith('by_id', 'found');
+  });
+
+  it('counts an id with no active product as not_found', async () => {
+    const repository = makeRepository();
+    repository.findOneBy.mockResolvedValue(null);
+
+    await makeService(repository).findActiveById('product-1');
+
+    readSettledWith('by_id', 'not_found');
+  });
+
+  it('counts a failed query and rethrows the error', async () => {
+    const repository = makeRepository();
+    const failure = new Error('connection lost');
+    repository.find.mockRejectedValue(failure);
+
+    await expect(makeService(repository).findActive()).rejects.toBe(failure);
+
+    readSettledWith('list', 'failed');
+  });
+
+  it('carries only closed-set attributes', async () => {
+    const repository = makeRepository();
+    repository.find.mockResolvedValue([{ id: 'product-1' }]);
+
+    await makeService(repository).create(dto, sellerId);
+    await makeService(repository).findActiveBySeller(sellerId);
+
+    // A seller or product id as an attribute mints a series per seller.
+    for (const [, attributes] of counters.mock.calls) {
+      for (const key of Object.keys(attributes as object)) {
+        expect(['query', 'outcome']).toContain(key);
+      }
+      expect(JSON.stringify(attributes)).not.toContain(sellerId);
+    }
   });
 });
