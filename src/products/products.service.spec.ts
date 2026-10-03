@@ -136,26 +136,39 @@ describe('ProductsService', () => {
 });
 
 describe('ProductsService metrics', () => {
-  let counters: ReturnType<typeof vi.spyOn>;
-  let histograms: ReturnType<typeof vi.spyOn>;
+  // Without a meter provider every counter is one shared no-op object, so a
+  // spy on one would also see writes meant for another. Each instrument gets
+  // its own mock instead: a value recorded on the wrong one fails the test.
+  const originals = { ...metrics };
+  let created: { add: ReturnType<typeof vi.fn> };
+  let price: { record: ReturnType<typeof vi.fn> };
+  let reads: { add: ReturnType<typeof vi.fn> };
+  let readDuration: { record: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    // No meter provider under test: every counter is the same no-op object,
-    // and so is every histogram — the attributes tell them apart.
-    counters = vi.spyOn(metrics.catalog_reads, 'add');
-    histograms = vi.spyOn(metrics.catalog_read_duration, 'record');
+    created = { add: vi.fn() };
+    price = { record: vi.fn() };
+    reads = { add: vi.fn() };
+    readDuration = { record: vi.fn() };
+
+    Object.assign(metrics, {
+      products_created: created,
+      product_price: price,
+      catalog_reads: reads,
+      catalog_read_duration: readDuration,
+    });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    Object.assign(metrics, originals);
   });
 
   const readSettledWith = (query: string, outcome: string) => {
-    expect(counters).toHaveBeenCalledWith(1, { query, outcome });
-    expect(histograms).toHaveBeenCalledWith(expect.any(Number), {
-      query,
-      outcome,
-    });
+    expect(reads.add).toHaveBeenCalledExactlyOnceWith(1, { query, outcome });
+    expect(readDuration.record).toHaveBeenCalledExactlyOnceWith(
+      expect.any(Number),
+      { query, outcome }
+    );
   };
 
   it('counts a created product and records its price', async () => {
@@ -163,8 +176,11 @@ describe('ProductsService metrics', () => {
 
     await makeService(repository).create(dto, sellerId);
 
-    expect(counters).toHaveBeenCalledWith(1, { outcome: 'succeeded' });
-    expect(histograms).toHaveBeenCalledWith(349.9);
+    expect(created.add).toHaveBeenCalledExactlyOnceWith(1, {
+      outcome: 'succeeded',
+    });
+    expect(price.record).toHaveBeenCalledExactlyOnceWith(349.9);
+    expect(reads.add).not.toHaveBeenCalled();
   });
 
   it('counts a failed creation and rethrows the error', async () => {
@@ -176,8 +192,10 @@ describe('ProductsService metrics', () => {
       failure
     );
 
-    expect(counters).toHaveBeenCalledWith(1, { outcome: 'failed' });
-    expect(histograms).not.toHaveBeenCalledWith(349.9);
+    expect(created.add).toHaveBeenCalledExactlyOnceWith(1, {
+      outcome: 'failed',
+    });
+    expect(price.record).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -193,6 +211,7 @@ describe('ProductsService metrics', () => {
     await run(makeService(repository));
 
     readSettledWith(query, 'found');
+    expect(created.add).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -249,11 +268,20 @@ describe('ProductsService metrics', () => {
     await makeService(repository).findActiveBySeller(sellerId);
 
     // A seller or product id as an attribute mints a series per seller.
-    for (const [, attributes] of counters.mock.calls) {
+    const attributeSets = [
+      ...created.add.mock.calls.map(([, attributes]) => attributes),
+      ...reads.add.mock.calls.map(([, attributes]) => attributes),
+      ...readDuration.record.mock.calls.map(([, attributes]) => attributes),
+    ];
+
+    expect(attributeSets.length).toBeGreaterThan(0);
+    for (const attributes of attributeSets) {
       for (const key of Object.keys(attributes as object)) {
         expect(['query', 'outcome']).toContain(key);
       }
       expect(JSON.stringify(attributes)).not.toContain(sellerId);
     }
+    // The price is the recorded value, never an attribute.
+    expect(price.record.mock.calls).toEqual([[349.9]]);
   });
 });
