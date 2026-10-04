@@ -17,7 +17,9 @@ describe('envSchema', () => {
     const env = envSchema.parse(baseEnv);
 
     expect(env.NODE_ENV).toBe('dev');
-    expect(env.PORT).toBe(3001);
+    // The marketplace runs 3333-3337; the gateway and the checkout look for
+    // the products service on 3335.
+    expect(env.PORT).toBe(3335);
     expect(env.LOG_LEVEL).toBe('info');
     expect(env.SHUTDOWN_DRAIN_DELAY_MS).toBe(10_000);
   });

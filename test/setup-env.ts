@@ -8,7 +8,7 @@
  */
 const defaults: Record<string, string> = {
   NODE_ENV: 'test',
-  PORT: '3001',
+  PORT: '3335',
   // Port 5438 is what `docker-compose.yaml` publishes for the test Postgres
   // (`${DB_TEST_PORT:-5438}`) — the dev one owns 5437.
   DB_HOST: 'localhost',

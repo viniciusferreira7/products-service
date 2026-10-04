@@ -11,7 +11,7 @@ seller-only creation.
 
 ```
                       ┌──▶ users-service      ── users_db
-api-gateway (3333) ───┼──▶ products-service (3001) ── products_db (5437)
+api-gateway (3333) ───┼──▶ products-service (3335) ── products_db (5437)
                       └──▶ checkout-service ──[payments exchange]──▶ payments-service
 ```
 
@@ -45,8 +45,8 @@ pnpm install
 pnpm start:dev
 ```
 
-The service listens on `http://localhost:3001`; Swagger UI is at
-`http://localhost:3001/api`. In `dev` TypeORM synchronizes the schema, so the
+The service listens on `http://localhost:3335`; Swagger UI is at
+`http://localhost:3335/api`. In `dev` TypeORM synchronizes the schema, so the
 `products` table is created on first boot.
 
 The test lanes get their own throwaway Postgres behind the `test` profile, on
