@@ -20,13 +20,16 @@ describe('Health probes (E2E)', () => {
       await app.close();
     });
 
-    it('identifies the service without authentication', async () => {
+    it('answers GET /health like the readiness probe, without authentication', async () => {
       const response = await request(app.getHttpServer()).get('/health');
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toEqual({
         status: 'ok',
-        service: 'products-service',
+        uptime: expect.any(Number),
+        checks: {
+          database: { status: 'up', responseTime: expect.any(Number) },
+        },
       });
     });
 
@@ -129,6 +132,19 @@ describe('Health probes (E2E)', () => {
             status: 'down',
             responseTime: expect.any(Number),
           },
+        },
+      });
+    });
+
+    it('answers GET /health with 503 when the database is down', async () => {
+      const response = await request(app.getHttpServer()).get('/health');
+
+      expect(response.statusCode).toBe(503);
+      expect(response.body).toEqual({
+        status: 'error',
+        uptime: expect.any(Number),
+        checks: {
+          database: { status: 'down', responseTime: expect.any(Number) },
         },
       });
     });
