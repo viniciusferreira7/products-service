@@ -10,9 +10,11 @@ seller-only creation.
 ## Where it sits
 
 ```
-                      ┌──▶ users-service      ── users_db
+                      ┌──▶ users-service (3334)    ── users_db
 api-gateway (3333) ───┼──▶ products-service (3335) ── products_db (5437)
-                      └──▶ checkout-service ──[payments exchange]──▶ payments-service
+                      └──▶ checkout-service (3336) ──[payments exchange]──▶ payments-service (3337)
+                                  │
+                                  └──▶ GET /products/:id (price and stock for the cart)
 ```
 
 ## Data model
